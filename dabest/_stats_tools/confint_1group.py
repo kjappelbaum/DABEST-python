@@ -2,28 +2,35 @@
 # -*-coding: utf-8 -*-
 # Author: Joses Ho
 # Email : joseshowh@gmail.com
+
+import concurrent.futures
+from functools import partial
+from tqdm import tqdm
+
 """
 A range of functions to compute bootstraps for a single sample.
 """
+
 
 def create_bootstrap_indexes(array, resamples=5000, random_seed=12345):
     """Given an array-like, returns a generator of bootstrap indexes
     to be used for resampling.
     """
     import numpy as np
-    
+
     # Set seed.
     np.random.seed(random_seed)
-    
+
     indexes = range(0, len(array))
 
     out = (np.random.choice(indexes, len(indexes), replace=True)
-            for i in range(0, resamples))
-    
+           for i in range(0, resamples))
+
     # Reset seed
     np.random.seed()
-    
+
     return out
+
 
 def compute_1group_jackknife(x, func, *args, **kwargs):
     """
@@ -31,10 +38,19 @@ def compute_1group_jackknife(x, func, *args, **kwargs):
     """
     from . import confint_2group_diff as ci_2g
     jackknives = [i for i in ci_2g.create_jackknife_indexes(x)]
-    out = [func(x[j], *args, **kwargs) for j in jackknives]
-    del jackknives # memory management.
-    return out
 
+    out = []
+
+    def func_wrap(j, *args, **kwargs):
+        return func(x[j], *args, **kwargs)
+
+    print('Running bootstraps')
+    with concurrent.futures.ProcessPoolExecutor(max_workers=6) as exec:
+        for o in tqdm(exec.map(func_wrap, jackknives), total=len(jackknives)):
+            out.append(o)
+
+    del jackknives  # memory management.
+    return out
 
 
 def compute_1group_acceleration(jack_dist):
@@ -42,28 +58,33 @@ def compute_1group_acceleration(jack_dist):
     return ci_2g._calc_accel(jack_dist)
 
 
-
 def compute_1group_bootstraps(x, func, resamples=5000, random_seed=12345,
-                             *args, **kwargs):
+                              *args, **kwargs):
     """Bootstraps func(x), with the number of specified resamples."""
 
     import numpy as np
-    
+
     # Instantiate random seed.
     np.random.seed(random_seed)
-    
+
     # Create bootstrap indexes.
     boot_indexes = create_bootstrap_indexes(x, resamples=resamples,
                                             random_seed=random_seed)
 
-    out = [func(x[b], *args, **kwargs) for b in boot_indexes]
-    
-    del boot_indexes
-    
-    np.random.seed()
-    
-    return out
+    def func_wrap(j, *args, **kwargs):
+        return func(x[j], *args, **kwargs)
 
+    out = []
+    print('Running bootstraps')
+    with concurrent.futures.ProcessPoolExecutor(max_workers=6) as exec:
+        for o in tqdm(exec.map(func_wrap, boot_indexes), total=len(boot_indexes)):
+            out.append(o)
+
+    del boot_indexes
+
+    np.random.seed()
+
+    return out
 
 
 def compute_1group_bias_correction(x, bootstraps, func, *args, **kwargs):
@@ -72,7 +93,6 @@ def compute_1group_bias_correction(x, bootstraps, func, *args, **kwargs):
     prop_boots_less_than_metric = sum(bootstraps < metric) / len(bootstraps)
 
     return norm.ppf(prop_boots_less_than_metric)
-
 
 
 def summary_ci_1group(x, func, resamples=5000, alpha=0.05, random_seed=12345,
@@ -100,9 +120,9 @@ def summary_ci_1group(x, func, resamples=5000, alpha=0.05, random_seed=12345,
         `random_seed` is used to seed the random number generator during
         bootstrap resampling. This ensures that the confidence intervals
         reported are replicable.
-        
+
     sort_bootstraps: boolean, default True
-    
+
 
 
     Returns
@@ -152,8 +172,8 @@ def summary_ci_1group(x, func, resamples=5000, alpha=0.05, random_seed=12345,
     del boots_sorted
 
     out = {'summary': func(x), 'func': func,
-            'bca_ci_low': low, 'bca_ci_high': high,
-            'bootstraps': B}
+           'bca_ci_low': low, 'bca_ci_high': high,
+           'bootstraps': B}
 
     del B
     return out

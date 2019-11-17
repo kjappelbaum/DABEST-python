@@ -6,6 +6,10 @@
 A range of functions to compute bootstraps for the mean difference 
 between two groups.
 """
+import concurrent.futures
+from tqdm import tqdm
+from functools import partial
+
 
 def create_jackknife_indexes(data):
     """
@@ -28,7 +32,6 @@ def create_jackknife_indexes(data):
     return (delete(index_range, i) for i in index_range)
 
 
-
 def create_repeated_indexes(data):
     """
     Convenience function. Given an array-like with length N,
@@ -38,7 +41,6 @@ def create_repeated_indexes(data):
 
     index_range = arange(0, len(data))
     return (index_range for i in index_range)
-
 
 
 def _create_two_group_jackknife_indexes(x0, x1, is_paired):
@@ -52,19 +54,29 @@ def _create_two_group_jackknife_indexes(x0, x1, is_paired):
     else:
         jackknife_c = list(zip([j for j in create_jackknife_indexes(x0)],
                                [i for i in create_repeated_indexes(x1)]
-                              )
-                          )
+                               )
+                           )
 
         jackknife_t = list(zip([i for i in create_repeated_indexes(x0)],
                                [j for j in create_jackknife_indexes(x1)]
-                              )
-                          )
+                               )
+                           )
         out = jackknife_c + jackknife_t
         del jackknife_c
         del jackknife_t
 
     return out
 
+
+def _func_wrap_compute_meandiff_jackknife(j, is_paired, effect_size, x0, x1):
+    from . import effsize as __es
+    x0_shuffled = x0[j[0]]
+    x1_shuffled = x1[j[1]]
+
+    es = __es.two_group_difference(x0_shuffled, x1_shuffled,
+                                   is_paired, effect_size)
+
+    return es
 
 
 def compute_meandiff_jackknife(x0, x1, is_paired, effect_size):
@@ -75,18 +87,17 @@ def compute_meandiff_jackknife(x0, x1, is_paired, effect_size):
 
     jackknives = _create_two_group_jackknife_indexes(x0, x1, is_paired)
 
+    print('Running bootstraps')
     out = []
 
-    for j in jackknives:
-        x0_shuffled = x0[j[0]]
-        x1_shuffled = x1[j[1]]
+    _func_wrap = partial(_func_wrap_compute_meandiff_jackknife,
+                         is_paired=is_paired, effect_size=effect_size, x0=x0, x1=x1)
 
-        es = __es.two_group_difference(x0_shuffled, x1_shuffled,
-                                       is_paired, effect_size)
-        out.append(es)
+    with concurrent.futures.ProcessPoolExecutor(max_workers=6) as exec:
+        for o in tqdm(exec.map(_func_wrap, jackknives), total=len(jackknives)):
+            out.append(o)
 
     return out
-
 
 
 def _calc_accel(jack_dist):
@@ -104,68 +115,54 @@ def _calc_accel(jack_dist):
         return numer / denom
 
 
+def _func_wrap_compute_bootstrapped_diff(_, is_paired, effect_size, x0, x1):
+    from . import effsize as __es
+    import numpy as np
+    x0_len = len(x0)
+    x1_len = len(x1)
+    if is_paired:
+        if x0_len != x1_len:
+            raise ValueError("The two arrays do not have the same length.")
+        random_idx = np.random.choice(x0_len, x0_len, replace=True)
+        x0_sample = x0[random_idx]
+        x1_sample = x1[random_idx]
+    else:
+        x0_sample = np.random.choice(x0, x0_len, replace=True)
+        x1_sample = np.random.choice(x1, x1_len, replace=True)
 
-# def compute_bootstrapped_diff(x0, x1, is_paired, effect_size,
-#                                 resamples=5000, random_seed=12345):
-#     """Bootstraps the effect_size for 2 groups."""
-#     from . import effsize as __es
-#     import numpy as np
-# 
-#     np.random.seed(random_seed)
-# 
-#     out = np.repeat(np.nan, resamples)
-#     x0_len = len(x0)
-#     x1_len = len(x1)
-# 
-#     for i in range(int(resamples)):
-#         x0_boot = np.random.choice(x0, x0_len, replace=True)
-#         x1_boot = np.random.choice(x1, x1_len, replace=True)
-#         out[i] = __es.two_group_difference(x0_boot, x1_boot,
-#                                           is_paired, effect_size)
-# 
-#     # reset seed
-#     np.random.seed()
-# 
-#     return out
+    return __es.two_group_difference(x0_sample, x1_sample,
+                                     is_paired, effect_size)
 
 
 def compute_bootstrapped_diff(x0, x1, is_paired, effect_size,
-                                resamples=5000, random_seed=12345):
+                              resamples=5000, random_seed=12345):
     """Bootstraps the effect_size for 2 groups."""
-    
+
     from . import effsize as __es
     import numpy as np
 
     np.random.seed(random_seed)
 
-    out = np.repeat(np.nan, resamples)
-    x0_len = len(x0)
-    x1_len = len(x1)
-    
-    for i in range(int(resamples)):
-        
-        if is_paired:
-            if x0_len != x1_len:
-                raise ValueError("The two arrays do not have the same length.")
-            random_idx = np.random.choice(x0_len, x0_len, replace=True)
-            x0_sample = x0[random_idx]
-            x1_sample = x1[random_idx]
-        else:
-            x0_sample = np.random.choice(x0, x0_len, replace=True)
-            x1_sample = np.random.choice(x1, x1_len, replace=True)
-            
-        out[i] = __es.two_group_difference(x0_sample, x1_sample,
-                                          is_paired, effect_size)
+    out = []
+
+
+    _func_wrap = partial(_func_wrap_compute_bootstrapped_diff,
+                         is_paired=is_paired, effect_size=effect_size, x0=x0, x1=x1)
+    print('Running bootstraps')
+    out = []
+    with concurrent.futures.ProcessPoolExecutor(max_workers=6) as exec:
+        for o in tqdm(exec.map(_func_wrap, range(int(resamples))), total=int(resamples)):
+            out.append(o)
 
     # reset seed
     np.random.seed()
-    
+
     # check whether there are any infinities in the bootstrap,
     # which likely indicates the sample sizes are too small as
-    # the computation of Cohen's d and Hedges' g necessitated 
+    # the computation of Cohen's d and Hedges' g necessitated
     # a division by zero.
     # Added in v0.2.6.
-    
+
     # num_infinities = len(out[np.isinf(out)])
     # print(num_infinities)
     # if num_infinities > 0:
@@ -176,10 +173,8 @@ def compute_bootstrapped_diff(x0, x1, is_paired, effect_size,
     #     "The computation of Cohen's d and Hedges' g will therefore "\
     #     "involved a division by zero. "
     #     warnings.warn(warn_msg.format(num_infinities), category="UserWarning")
-        
-    return out
 
-
+    return np.array(out)
 
 
 def compute_meandiff_bias_correction(bootstraps, effsize):
@@ -213,7 +208,6 @@ def compute_meandiff_bias_correction(bootstraps, effsize):
     return norm.ppf(prop_less_than_es)
 
 
-
 def _compute_alpha_from_ci(ci):
     if ci < 0 or ci > 100:
         raise ValueError("`ci` must be a number between 0 and 100.")
@@ -221,13 +215,11 @@ def _compute_alpha_from_ci(ci):
     return (100. - ci) / 100.
 
 
-
 def _compute_quantile(z, bias, acceleration):
     numer = bias + z
     denom = 1 - (acceleration * numer)
 
     return bias + (numer / denom)
-
 
 
 def compute_interval_limits(bias, acceleration, n_boots, ci=95):
