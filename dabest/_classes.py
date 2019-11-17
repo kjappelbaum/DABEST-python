@@ -3,6 +3,7 @@
 # Author: Joses Ho
 # Email : joseshowh@gmail.com
 
+
 class Dabest(object):
 
     """
@@ -10,8 +11,7 @@ class Dabest(object):
     """
 
     def __init__(self, data, idx, x, y, paired, id_col, ci, resamples,
-                random_seed):
-
+                 random_seed):
         """
         Parses and stores pandas DataFrames in preparation for estimation
         statistics.
@@ -22,20 +22,18 @@ class Dabest(object):
         import pandas as pd
         import seaborn as sns
 
-        self.__ci          = ci
-        self.__data        = data
-        self.__idx         = idx
-        self.__id_col      = id_col
-        self.__is_paired   = paired
-        self.__resamples   = resamples
+        self.__ci = ci
+        self.__data = data
+        self.__idx = idx
+        self.__id_col = id_col
+        self.__is_paired = paired
+        self.__resamples = resamples
         self.__random_seed = random_seed
 
         # Make a copy of the data, so we don't make alterations to it.
         data_in = data.copy()
         # data_in.reset_index(inplace=True)
         # data_in_index_name = data_in.index.name
-
-
 
         # Determine the kind of estimation plot we need to produce.
         if all([isinstance(i, str) for i in idx]):
@@ -44,23 +42,23 @@ class Dabest(object):
             if len(idx) > len(all_plot_groups):
                 err0 = '`idx` contains duplicated groups. Please remove any duplicates and try again.'
                 raise ValueError(err0)
-                
+
             # We need to re-wrap this idx inside another tuple so as to
             # easily loop thru each pairwise group later on.
             self.__idx = (idx,)
 
         elif all([isinstance(i, (tuple, list)) for i in idx]):
             all_plot_groups = pd.unique([tt for t in idx for tt in t]).tolist()
-            
+
             actual_groups_given = sum([len(i) for i in idx])
-            
+
             if actual_groups_given > len(all_plot_groups):
                 err0 = 'Groups are repeated across tuples,'
                 err1 = ' or a tuple has repeated groups in it.'
                 err2 = ' Please remove any duplicates and try again.'
                 raise ValueError(err0 + err1 + err2)
 
-        else: # mix of string and tuple?
+        else:  # mix of string and tuple?
             err = 'There seems to be a problem with the idx you'
             'entered--{}.'.format(idx)
             raise ValueError(err)
@@ -73,7 +71,6 @@ class Dabest(object):
                 err1 = "`is_paired` is True, but some idx "
                 err2 = "in {} does not consist only of two groups.".format(idx)
                 raise ValueError(err1 + err2)
-
 
         # Determine the type of data: wide or long.
         if x is None and y is not None:
@@ -97,20 +94,22 @@ class Dabest(object):
 
             # check y is numeric.
             if not np.issubdtype(data_in[y].dtype, np.number):
-                err = '{0} is a column in `data`, but it is not numeric.'.format(y)
+                err = '{0} is a column in `data`, but it is not numeric.'.format(
+                    y)
                 raise ValueError(err)
 
             # check all the idx can be found in data_in[x]
             for g in all_plot_groups:
                 if g not in data_in[x].unique():
-                    err0 = '"{0}" is not a group in the column `{1}`.'.format(g, x)
+                    err0 = '"{0}" is not a group in the column `{1}`.'.format(
+                        g, x)
                     err1 = " Please check `idx` and try again."
                     raise IndexError(err0 + err1)
 
-            # Select only rows where the value in the `x` column 
+            # Select only rows where the value in the `x` column
             # is found in `idx`.
             plot_data = data_in[data_in.loc[:, x].isin(all_plot_groups)].copy()
-            
+
             # plot_data.drop("index", inplace=True, axis=1)
 
             # Assign attributes
@@ -133,8 +132,8 @@ class Dabest(object):
                     err0 = '"{0}" is not a column in `data`.'.format(g)
                     err1 = " Please check `idx` and try again."
                     raise IndexError(err0 + err1)
-                    
-            set_all_columns     = set(data_in.columns.tolist())
+
+            set_all_columns = set(data_in.columns.tolist())
             set_all_plot_groups = set(all_plot_groups)
             id_vars = set_all_columns.difference(set_all_plot_groups)
 
@@ -143,33 +142,31 @@ class Dabest(object):
                                 value_vars=all_plot_groups,
                                 value_name=self.__yvar,
                                 var_name=self.__xvar)
-                                
+
         # Added in v0.2.7.
         # remove any NA rows.
         plot_data.dropna(axis=0, how='any', subset=[self.__yvar], inplace=True)
 
-        
         # Lines 131 to 140 added in v0.2.3.
-        # Fixes a bug that jammed up when the xvar column was already 
+        # Fixes a bug that jammed up when the xvar column was already
         # a pandas Categorical. Now we check for this and act appropriately.
-        if isinstance(plot_data[self.__xvar].dtype, 
+        if isinstance(plot_data[self.__xvar].dtype,
                       pd.CategoricalDtype) is True:
             plot_data[self.__xvar].cat.remove_unused_categories(inplace=True)
-            plot_data[self.__xvar].cat.reorder_categories(all_plot_groups, 
-                                                          ordered=True, 
+            plot_data[self.__xvar].cat.reorder_categories(all_plot_groups,
+                                                          ordered=True,
                                                           inplace=True)
         else:
             plot_data.loc[:, self.__xvar] = pd.Categorical(plot_data[self.__xvar],
-                                               categories=all_plot_groups,
-                                               ordered=True)
-        
+                                                           categories=all_plot_groups,
+                                                           ordered=True)
+
         # # The line below was added in v0.2.4, removed in v0.2.5.
         # plot_data.dropna(inplace=True)
-        
-        self.__plot_data = plot_data
-        
-        self.__all_plot_groups = all_plot_groups
 
+        self.__plot_data = plot_data
+
+        self.__all_plot_groups = all_plot_groups
 
         # Sanity check that all idxs are paired, if so desired.
         if paired is True:
@@ -184,24 +181,23 @@ class Dabest(object):
                                           random_seed=random_seed,
                                           resamples=resamples)
 
-        self.mean_diff    = EffectSizeDataFrame(self, "mean_diff",
-                                                **EffectSizeDataFrame_kwargs)
+        self.mean_diff = EffectSizeDataFrame(self, "mean_diff",
+                                             **EffectSizeDataFrame_kwargs)
 
-        self.median_diff  = EffectSizeDataFrame(self, "median_diff",
+        self.median_diff = EffectSizeDataFrame(self, "median_diff",
                                                **EffectSizeDataFrame_kwargs)
 
-        self.cohens_d     = EffectSizeDataFrame(self, "cohens_d",
-                                                **EffectSizeDataFrame_kwargs)
+        self.cohens_d = EffectSizeDataFrame(self, "cohens_d",
+                                            **EffectSizeDataFrame_kwargs)
 
-        self.hedges_g     = EffectSizeDataFrame(self, "hedges_g",
-                                                **EffectSizeDataFrame_kwargs)
+        self.hedges_g = EffectSizeDataFrame(self, "hedges_g",
+                                            **EffectSizeDataFrame_kwargs)
 
         if paired is False:
             self.cliffs_delta = EffectSizeDataFrame(self, "cliffs_delta",
                                                     **EffectSizeDataFrame_kwargs)
         else:
             self.cliffs_delta = "The data is paired; Cliff's delta is therefore undefined."
-
 
     def __repr__(self):
         from .__init__ import __version__
@@ -218,7 +214,8 @@ class Dabest(object):
         greeting_header = print_greeting()
 
         s1 = "{}ffect size(s) ".format(es)
-        s2 = "with {}% confidence intervals will be computed for:".format(self.__ci)
+        s2 = "with {}% confidence intervals will be computed for:".format(
+            self.__ci)
         desc_line = s1 + s2
 
         out = [greeting_header + "\n\n" + desc_line]
@@ -229,7 +226,8 @@ class Dabest(object):
             control_name = current_tuple[0]
 
             for ix, test_name in enumerate(current_tuple[1:]):
-                comparisons.append("{} minus {}".format(test_name, control_name))
+                comparisons.append(
+                    "{} minus {}".format(test_name, control_name))
 
         for j, g in enumerate(comparisons):
             out.append("{}. {}".format(j+1, g))
@@ -240,14 +238,12 @@ class Dabest(object):
 
         return "\n".join(out)
 
-
     # def __variable_name(self):
     #     return [k for k,v in locals().items() if v is self]
     #
     # @property
     # def variable_name(self):
     #     return self.__variable_name()
-
 
     @property
     def data(self):
@@ -299,7 +295,6 @@ class Dabest(object):
         """
         return self.__random_seed
 
-
     @property
     def x(self):
         """
@@ -343,10 +338,6 @@ class Dabest(object):
         return self.__all_plot_groups
 
 
-
-
-
-
 class TwoGroupsEffectSize(object):
 
     """
@@ -357,7 +348,6 @@ class TwoGroupsEffectSize(object):
     def __init__(self, control, test, effect_size,
                  is_paired=False, ci=95,
                  resamples=5000, random_seed=12345):
-
         """
         Compute the effect size between two groups.
 
@@ -384,42 +374,42 @@ class TwoGroupsEffectSize(object):
         Returns
         -------
         A :py:class:`TwoGroupEffectSize` object.
-        
+
         difference : float
             The effect size of the difference between the control and the test.
-        
+
         effect_size : string
             The type of effect size reported.
-        
+
         is_paired : boolean
             Whether or not the difference is paired (ie. repeated measures).
-            
+
         ci : float
             Returns the width of the confidence interval, in percent.
-            
+
         alpha : float
             Returns the significance level of the statistical test as a float
             between 0 and 1.
-            
+
         resamples : int
             The number of resamples performed during the bootstrap procedure.
 
         bootstraps : nmupy ndarray
             The generated bootstraps of the effect size.
-            
+
         random_seed : int
             The number used to initialise the numpy random seed generator, ie.
             `seed_value` from `numpy.random.seed(seed_value)` is returned.
-            
+
         bca_low, bca_high : float
             The bias-corrected and accelerated confidence interval lower limit
             and upper limits, respectively.
-            
+
         pct_low, pct_high : float
             The percentile confidence interval lower limit and upper limits, 
             respectively.
-            
-            
+
+
         Examples
         --------
         >>> import numpy as np
@@ -479,14 +469,11 @@ class TwoGroupsEffectSize(object):
         from ._stats_tools import confint_2group_diff as ci2g
         from ._stats_tools import effsize as es
 
-
-
-        self.__EFFECT_SIZE_DICT =  {"mean_diff" : "mean difference",
-                                    "median_diff" : "median difference",
-                                    "cohens_d" : "Cohen's d",
-                                    "hedges_g" : "Hedges' g",
-                                    "cliffs_delta" : "Cliff's delta"}
-
+        self.__EFFECT_SIZE_DICT = {"mean_diff": "mean difference",
+                                   "median_diff": "median difference",
+                                   "cohens_d": "Cohen's d",
+                                   "hedges_g": "Hedges' g",
+                                   "cliffs_delta": "Cliff's delta"}
 
         kosher_es = [a for a in self.__EFFECT_SIZE_DICT.keys()]
         if effect_size not in kosher_es:
@@ -501,49 +488,48 @@ class TwoGroupsEffectSize(object):
         # Convert to numpy arrays for speed.
         # NaNs are automatically dropped.
         control = array(control)
-        test    = array(test)
+        test = array(test)
         control = control[~isnan(control)]
-        test    = test[~isnan(test)]
+        test = test[~isnan(test)]
 
         self.__effect_size = effect_size
-        self.__control     = control
-        self.__test        = test
-        self.__is_paired   = is_paired
-        self.__resamples   = resamples
+        self.__control = control
+        self.__test = test
+        self.__is_paired = is_paired
+        self.__resamples = resamples
         self.__random_seed = random_seed
-        self.__ci          = ci
-        self.__alpha       = ci2g._compute_alpha_from_ci(ci)
-
+        self.__ci = ci
+        self.__alpha = ci2g._compute_alpha_from_ci(ci)
 
         self.__difference = es.two_group_difference(
-                                control, test, is_paired, effect_size)
+            control, test, is_paired, effect_size)
 
         self.__jackknives = ci2g.compute_meandiff_jackknife(
-                                control, test, is_paired, effect_size)
+            control, test, is_paired, effect_size)
 
         self.__acceleration_value = ci2g._calc_accel(self.__jackknives)
 
         bootstraps = ci2g.compute_bootstrapped_diff(
-                            control, test, is_paired, effect_size,
-                            resamples, random_seed)
+            control, test, is_paired, effect_size,
+            resamples, random_seed)
         self.__bootstraps = npsort(bootstraps)
-        
+
         # Added in v0.2.6.
         # Raises a UserWarning if there are any infiinities in the bootstraps.
         num_infinities = len(self.__bootstraps[isinf(self.__bootstraps)])
-        
+
         if num_infinities > 0:
             warn_msg = "There are {} bootstrap(s) that are not defined. "\
-            "This is likely due to smaple sample sizes. "\
-            "The values in a bootstrap for a group will be more likely "\
-            "to be all equal, with a resulting variance of zero. "\
-            "The computation of Cohen's d and Hedges' g thus "\
-            "involved a division by zero. "
-            warnings.warn(warn_msg.format(num_infinities), 
+                "This is likely due to smaple sample sizes. "\
+                "The values in a bootstrap for a group will be more likely "\
+                "to be all equal, with a resulting variance of zero. "\
+                "The computation of Cohen's d and Hedges' g thus "\
+                "involved a division by zero. "
+            warnings.warn(warn_msg.format(num_infinities),
                           category=UserWarning)
 
         self.__bias_correction = ci2g.compute_meandiff_bias_correction(
-                                    self.__bootstraps, self.__difference)
+            self.__bootstraps, self.__difference)
 
         # Compute BCa intervals.
         bca_idx_low, bca_idx_high = ci2g.compute_interval_limits(
@@ -553,7 +539,7 @@ class TwoGroupsEffectSize(object):
         self.__bca_interval_idx = (bca_idx_low, bca_idx_high)
 
         if ~isnan(bca_idx_low) and ~isnan(bca_idx_high):
-            self.__bca_low  = self.__bootstraps[bca_idx_low]
+            self.__bca_low = self.__bootstraps[bca_idx_low]
             self.__bca_high = self.__bootstraps[bca_idx_high]
 
             err1 = "The $lim_type limit of the interval"
@@ -578,21 +564,21 @@ class TwoGroupsEffectSize(object):
             err_temp = Template(" ".join([err1, err2, err3]))
 
             if isnan(bca_idx_low):
-                self.__bca_low  = self.__difference
+                self.__bca_low = self.__difference
                 warnings.warn(err_temp.substitute(lim_type="lower"),
                               stacklevel=0)
 
             if isnan(bca_idx_high):
-                self.__bca_high  = self.__difference
+                self.__bca_high = self.__difference
                 warnings.warn(err_temp.substitute(lim_type="upper"),
                               stacklevel=0)
 
         # Compute percentile intervals.
-        pct_idx_low  = int((self.__alpha/2)     * resamples)
+        pct_idx_low = int((self.__alpha/2) * resamples)
         pct_idx_high = int((1-(self.__alpha/2)) * resamples)
 
         self.__pct_interval_idx = (pct_idx_low, pct_idx_high)
-        self.__pct_low  = self.__bootstraps[pct_idx_low]
+        self.__pct_low = self.__bootstraps[pct_idx_low]
         self.__pct_high = self.__bootstraps[pct_idx_high]
 
         # Perform statistical tests.
@@ -613,14 +599,12 @@ class TwoGroupsEffectSize(object):
                 #                                     len(control),
                 #                                     alpha=self.__alpha)
 
-
         elif effect_size == "cliffs_delta":
             # Let's go with Brunner-Munzel!
             brunner_munzel = spstats.brunnermunzel(control, test,
-                                                     nan_policy='omit')
+                                                   nan_policy='omit')
             self.__pvalue_brunner_munzel = brunner_munzel.pvalue
             self.__statistic_brunner_munzel = brunner_munzel.statistic
-
 
         elif effect_size == "median_diff":
             # According to scipy's documentation of the function,
@@ -631,25 +615,25 @@ class TwoGroupsEffectSize(object):
             self.__statistic_kruskal = kruskal.statistic
             # self.__power = np.nan
 
-        else: # for mean difference, Cohen's d, and Hedges' g.
+        else:  # for mean difference, Cohen's d, and Hedges' g.
             # Welch's t-test, assumes normality of distributions,
             # but does not assume equal variances.
             welch = spstats.ttest_ind(control, test, equal_var=False,
-                                       nan_policy='omit')
+                                      nan_policy='omit')
             self.__pvalue_welch = welch.pvalue
             self.__statistic_welch = welch.statistic
 
             # Student's t-test, assumes normality of distributions,
             # as well as assumption of equal variances.
             students_t = spstats.ttest_ind(control, test, equal_var=True,
-                                            nan_policy='omit')
+                                           nan_policy='omit')
             self.__pvalue_students_t = students_t.pvalue
             self.__statistic_students_t = students_t.statistic
 
             # Mann-Whitney test: Non parametric,
             # does not assume normality of distributions
             try:
-                mann_whitney = spstats.mannwhitneyu(control, test, 
+                mann_whitney = spstats.mannwhitneyu(control, test,
                                                     alternative='two-sided')
                 self.__pvalue_mann_whitney = mann_whitney.pvalue
                 self.__statistic_mann_whitney = mann_whitney.statistic
@@ -665,27 +649,22 @@ class TwoGroupsEffectSize(object):
             #                                         ratio=len(test)/len(control)
             #                                         )
 
-
-
-
-
-
     def __repr__(self, show_resample_count=True, define_pval=True, sigfig=3):
-        UNPAIRED_ES_TO_TEST = {"mean_diff"    : "Mann-Whitney",
-                               "median_diff"  : "Kruskal",
-                               "cohens_d"     : "Mann-Whitney",
-                               "hedges_g"     : "Mann-Whitney",
-                               "cliffs_delta" : "Brunner-Munzel"}
+        UNPAIRED_ES_TO_TEST = {"mean_diff": "Mann-Whitney",
+                               "median_diff": "Kruskal",
+                               "cohens_d": "Mann-Whitney",
+                               "hedges_g": "Mann-Whitney",
+                               "cliffs_delta": "Brunner-Munzel"}
 
-        TEST_TO_PVAL_ATTR = {"Mann-Whitney"    : "pvalue_mann_whitney",
-                             "Kruskal"        :  "pvalue_kruskal",
-                             "Brunner-Munzel" :  "pvalue_brunner_munzel",
-                             "Wilcoxon"       :  "pvalue_wilcoxon"}
+        TEST_TO_PVAL_ATTR = {"Mann-Whitney": "pvalue_mann_whitney",
+                             "Kruskal":  "pvalue_kruskal",
+                             "Brunner-Munzel":  "pvalue_brunner_munzel",
+                             "Wilcoxon":  "pvalue_wilcoxon"}
 
         PAIRED_STATUS = {True: 'paired', False: 'unpaired'}
 
         first_line = {"is_paired": PAIRED_STATUS[self.__is_paired],
-                      "es"       : self.__EFFECT_SIZE_DICT[self.__effect_size]}
+                      "es": self.__EFFECT_SIZE_DICT[self.__effect_size]}
 
         out1 = "The {is_paired} {es} ".format(**first_line)
 
@@ -695,10 +674,10 @@ class TwoGroupsEffectSize(object):
         else:
             ci_width = str(self.__ci)
 
-        ci_out = {"es"       : base_string_fmt.format(self.__difference),
-                  "ci"       : ci_width,
-                  "bca_low"  : base_string_fmt.format(self.__bca_low),
-                  "bca_high" : base_string_fmt.format(self.__bca_high)}
+        ci_out = {"es": base_string_fmt.format(self.__difference),
+                  "ci": ci_width,
+                  "bca_low": base_string_fmt.format(self.__bca_low),
+                  "bca_high": base_string_fmt.format(self.__bca_high)}
 
         out2 = "is {es} [{ci}%CI {bca_low}, {bca_high}].".format(**ci_out)
         out = out1 + out2
@@ -708,10 +687,10 @@ class TwoGroupsEffectSize(object):
         else:
             stats_test = UNPAIRED_ES_TO_TEST[self.__effect_size]
         pval_rounded = base_string_fmt.format(getattr(self,
-                                                     TEST_TO_PVAL_ATTR[stats_test])
+                                                      TEST_TO_PVAL_ATTR[stats_test])
                                               )
         pvalue = "The two-sided p-value of the {} test is {}.".format(stats_test,
-                                                                pval_rounded)
+                                                                      pval_rounded)
 
         bs1 = "{} bootstrap samples were taken; ".format(self.__resamples)
         bs2 = "the confidence interval is bias-corrected and accelerated."
@@ -729,8 +708,6 @@ class TwoGroupsEffectSize(object):
         else:
             return "{}\n{}".format(out, pvalue)
 
-
-
     def to_dict(self):
         """
         Returns the attributes of the `dabest.TwoGroupEffectSize` object as a
@@ -743,9 +720,6 @@ class TwoGroupsEffectSize(object):
         for a in attrs:
             out[a] = getattr(self, a)
         return out
-
-
-
 
     @property
     def difference(self):
@@ -838,8 +812,6 @@ class TwoGroupsEffectSize(object):
         """
         return self.__pct_high
 
-
-
     @property
     def pvalue_brunner_munzel(self):
         from numpy import nan as npnan
@@ -855,8 +827,6 @@ class TwoGroupsEffectSize(object):
             return self.__statistic_brunner_munzel
         except AttributeError:
             return npnan
-
-
 
     @property
     def pvalue_wilcoxon(self):
@@ -874,8 +844,6 @@ class TwoGroupsEffectSize(object):
         except AttributeError:
             return npnan
 
-
-
     @property
     def pvalue_paired_students_t(self):
         from numpy import nan as npnan
@@ -891,8 +859,6 @@ class TwoGroupsEffectSize(object):
             return self.__statistic_paired_students_t
         except AttributeError:
             return npnan
-
-
 
     @property
     def pvalue_kruskal(self):
@@ -910,8 +876,6 @@ class TwoGroupsEffectSize(object):
         except AttributeError:
             return npnan
 
-
-
     @property
     def pvalue_welch(self):
         from numpy import nan as npnan
@@ -927,8 +891,6 @@ class TwoGroupsEffectSize(object):
             return self.__statistic_welch
         except AttributeError:
             return npnan
-
-
 
     @property
     def pvalue_students_t(self):
@@ -946,8 +908,6 @@ class TwoGroupsEffectSize(object):
         except AttributeError:
             return npnan
 
-
-
     @property
     def pvalue_mann_whitney(self):
         from numpy import nan as npnan
@@ -955,8 +915,6 @@ class TwoGroupsEffectSize(object):
             return self.__pvalue_mann_whitney
         except AttributeError:
             return npnan
-
-
 
     @property
     def statistic_mann_whitney(self):
@@ -966,8 +924,6 @@ class TwoGroupsEffectSize(object):
         except AttributeError:
             return npnan
 
-
-
     # @property
     # def power(self):
     #     from numpy import nan as npnan
@@ -975,9 +931,6 @@ class TwoGroupsEffectSize(object):
     #         return self.__power
     #     except AttributeError:
     #         return npnan
-
-
-
 
 
 class EffectSizeDataFrame(object):
@@ -992,20 +945,19 @@ class EffectSizeDataFrame(object):
         capability for the effect size of interest.
         """
 
-        self.__dabest_obj   = dabest
-        self.__effect_size  = effect_size
-        self.__is_paired    = is_paired
-        self.__ci           = ci
-        self.__resamples    = resamples
-        self.__random_seed  = random_seed
-
+        self.__dabest_obj = dabest
+        self.__effect_size = effect_size
+        self.__is_paired = is_paired
+        self.__ci = ci
+        self.__resamples = resamples
+        self.__random_seed = random_seed
 
     def __pre_calc(self):
         import pandas as pd
         from .misc_tools import print_greeting, get_varname
 
-        idx  = self.__dabest_obj.idx
-        dat  = self.__dabest_obj._plot_data
+        idx = self.__dabest_obj.idx
+        dat = self.__dabest_obj._plot_data
         xvar = self.__dabest_obj._xvar
         yvar = self.__dabest_obj._yvar
 
@@ -1028,19 +980,19 @@ class EffectSizeDataFrame(object):
                                              self.__random_seed)
                 r_dict = result.to_dict()
 
-                r_dict["control"]   = cname
-                r_dict["test"]      = tname
+                r_dict["control"] = cname
+                r_dict["test"] = tname
                 r_dict["control_N"] = int(len(control))
-                r_dict["test_N"]    = int(len(test))
-                
+                r_dict["test_N"] = int(len(test))
+
                 out.append(r_dict)
 
                 if j == len(idx)-1 and ix == len(current_tuple)-2:
                     resamp_count = True
-                    def_pval     = True
+                    def_pval = True
                 else:
                     resamp_count = False
-                    def_pval     = False
+                    def_pval = False
 
                 text_repr = result.__repr__(show_resample_count=resamp_count,
                                             define_pval=def_pval)
@@ -1052,14 +1004,14 @@ class EffectSizeDataFrame(object):
 
         varname = get_varname(self.__dabest_obj)
         lastline = "To get the results of all valid statistical tests, " +\
-        "use `{}.{}.statistical_tests`".format(varname, self.__effect_size)
+            "use `{}.{}.statistical_tests`".format(varname, self.__effect_size)
         reprs.append(lastline)
 
         reprs.insert(0, print_greeting())
 
         self.__for_print = "\n\n".join(reprs)
 
-        out_             = pd.DataFrame(out)
+        out_ = pd.DataFrame(out)
 
         columns_in_order = ['control', 'test', 'control_N', 'test_N',
                             'effect_size', 'is_paired',
@@ -1091,10 +1043,8 @@ class EffectSizeDataFrame(object):
                             'pvalue_kruskal',
                             'statistic_kruskal']
 
-        self.__results   = out_.reindex(columns=columns_in_order)
+        self.__results = out_.reindex(columns=columns_in_order)
         self.__results.dropna(axis="columns", how="all", inplace=True)
-
-
 
     def __repr__(self):
         try:
@@ -1103,36 +1053,35 @@ class EffectSizeDataFrame(object):
             self.__pre_calc()
             return self.__for_print
 
-
-
     def plot(self, color_col=None,
 
-            raw_marker_size=6, es_marker_size=9,
+             raw_marker_size=6, es_marker_size=9,
 
-            swarm_label=None, contrast_label=None,
-            swarm_ylim=None, contrast_ylim=None,
+             swarm_label=None, contrast_label=None,
+             swarm_ylim=None, contrast_ylim=None,
 
-            custom_palette=None, swarm_desat=0.5, halfviolin_desat=1,
-            halfviolin_alpha=0.8, 
+             custom_palette=None, swarm_desat=0.5, halfviolin_desat=1,
+             halfviolin_alpha=0.8,
 
-            float_contrast=True,
-            show_pairs=True,
-            group_summaries=None,
-            group_summaries_offset=0.1,
+             float_contrast=True,
+             show_pairs=True,
+             group_summaries=None,
+             group_summaries_offset=0.1,
 
-            fig_size=None,
-            dpi=100,
-            ax=None,
+             fig_size=None,
+             dpi=100,
+             ax=None,
 
-            swarmplot_kwargs=None,
-            violinplot_kwargs=None,
-            slopegraph_kwargs=None,
-            reflines_kwargs=None,
-            group_summary_kwargs=None,
-            legend_kwargs=None):
+             swarmplot_kwargs=None,
+             swarm_subsample=None,
+             violinplot_kwargs=None,
+             slopegraph_kwargs=None,
+             reflines_kwargs=None,
+             group_summary_kwargs=None,
+             legend_kwargs=None):
         """
         Creates an estimation plot for the effect size of interest.
-        
+
 
         Parameters
         ----------
@@ -1231,13 +1180,13 @@ class EffectSizeDataFrame(object):
         Returns
         -------
         A :class:`matplotlib.figure.Figure` with 2 Axes, if ``ax = None``.
-        
+
         The first axes (accessible with ``FigName.axes[0]``) contains the rawdata swarmplot; the second axes (accessible with ``FigName.axes[1]``) has the bootstrap distributions and effect sizes (with confidence intervals) plotted on it.
-        
+
         If ``ax`` is specified, the rawdata swarmplot is accessed at ``ax`` 
         itself, while the effect size axes is accessed at ``ax.contrast_axes``.
         See the last example below.
-        
+
 
         Examples
         --------
@@ -1273,9 +1222,9 @@ class EffectSizeDataFrame(object):
         ...                                          "Test 2", "Test 3")
         ...                                 )
         >>> fig6 = my_shared_control.mean_diff.plot()
-        
+
         Creating estimation plots in individual panels of a figure.
-        
+
         >>> f, axx = plt.subplots(nrows=2, ncols=2, figsize=(15, 15))
         >>> my_data.mean_diff.plot(ax=axx.flat[0])
         >>> my_data_paired.mean_diff.plot(ax=axx.flat[1])
@@ -1296,7 +1245,6 @@ class EffectSizeDataFrame(object):
 
         return out
 
-
     @property
     def results(self):
         """Prints all pairwise comparisons nicely."""
@@ -1305,8 +1253,6 @@ class EffectSizeDataFrame(object):
         except AttributeError:
             self.__pre_calc()
             return self.__results
-
-
 
     @property
     def statistical_tests(self):
@@ -1323,7 +1269,6 @@ class EffectSizeDataFrame(object):
         cols_of_interest = default_cols + stats_columns
 
         return results_df[cols_of_interest]
-
 
     @property
     def _for_print(self):

@@ -145,7 +145,6 @@ def compute_bootstrapped_diff(x0, x1, is_paired, effect_size,
 
     out = []
 
-
     _func_wrap = partial(_func_wrap_compute_bootstrapped_diff,
                          is_paired=is_paired, effect_size=effect_size, x0=x0, x1=x1)
     print('Running bootstraps')
